@@ -1,0 +1,4 @@
+build/
+online/selftest
+*.o
+.DS_Store
