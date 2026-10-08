@@ -327,6 +327,7 @@ static void *ui_thread(void *arg)
 
     for (;;) {
         fd_set fds;
+        xbl_keys_publish();
         struct timeval tv;
         sock_t c;
         FD_ZERO(&fds);

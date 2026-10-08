@@ -11,6 +11,29 @@
 #include <CommonCrypto/CommonHMAC.h>
 #endif
 
+void xbl_rc4(const uint8_t *key, size_t klen,
+             const uint8_t *in, uint8_t *out, size_t n)
+{
+    uint8_t s[256];
+    uint8_t i = 0, j = 0;
+    size_t k;
+    if (!key || !klen || !out) return;
+    for (k = 0; k < 256; k++) s[k] = (uint8_t)k;
+    for (k = 0; k < 256; k++) {
+        j = (uint8_t)(j + s[k] + key[k % klen]);
+        { uint8_t t = s[k]; s[k] = s[j]; s[j] = t; }
+    }
+    i = 0;
+    j = 0;
+    for (k = 0; k < n; k++) {
+        uint8_t t;
+        i++;
+        j = (uint8_t)(j + s[i]);
+        t = s[i]; s[i] = s[j]; s[j] = t;
+        out[k] = (uint8_t)((in ? in[k] : 0) ^ s[(uint8_t)(s[i] + s[j])]);
+    }
+}
+
 int xbl_hmac_sha1(const uint8_t *key, size_t klen,
                   const uint8_t *data, size_t dlen, uint8_t out[20])
 {

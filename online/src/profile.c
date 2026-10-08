@@ -187,16 +187,85 @@ static void account_path(char *out, size_t cap)
     path_join(out, cap, dir, "account.txt");
 }
 
+/* Same constant the dashboard uses for MACS. The machine key is
+ * RC4(HMAC-SHA1(this, hdd_key), online_key). */
+static const uint8_t HDD_MORPH_KEY[16] = {
+    0x60, 0x59, 0xE8, 0x2E, 0xDF, 0xBF, 0x7F, 0xD3,
+    0x23, 0x35, 0x74, 0x2A, 0x64, 0x8B, 0xB1, 0x2C
+};
+
+static void derive_macs_key(XblConsole *c)
+{
+    uint8_t digest[20];
+    if (xbl_hmac_sha1(HDD_MORPH_KEY, 16, c->hdd_key, 16, digest) != 0) {
+        memcpy(c->macs_key, c->online_key, 16);
+        return;
+    }
+    xbl_rc4(digest, 20, c->online_key, c->macs_key, 16);
+}
+
+static void write_eeprom(const XblConsole *c)
+{
+    char dir[512], path[640];
+    uint8_t eeprom[256];
+    FILE *f;
+    xbl_profile_dir(dir, sizeof(dir));
+    mkdir_p(dir);
+    if (!path_join(path, sizeof(path), dir, "eeprom.bin")) return;
+    memset(eeprom, 0, sizeof(eeprom));
+    memcpy(eeprom + 0x1C, c->hdd_key, 16);
+    memcpy(eeprom + 0x34, c->serial, 12);
+    memcpy(eeprom + 0x40, c->mac, 6);
+    memcpy(eeprom + 0x48, c->online_key, 16);
+    f = fopen(path, "wb");
+    if (!f) return;
+    fwrite(eeprom, 1, sizeof(eeprom), f);
+    fclose(f);
+}
+
+static int save_console(const XblConsole *c)
+{
+    char path[640], hk[40], ok[40], mk[40];
+    FILE *f;
+    console_path(path, sizeof(path));
+    f = fopen(path, "wb");
+    if (!f) return -1;
+    hex_out(c->hdd_key, 16, hk);
+    hex_out(c->online_key, 16, ok);
+    hex_out(c->macs_key, 16, mk);
+    fprintf(f,
+            "serial=%s\n"
+            "mac=%02x:%02x:%02x:%02x:%02x:%02x\n"
+            "hdd_key=%s\n"
+            "online_key=%s\n"
+            "macs_key=%s\n",
+            c->serial,
+            c->mac[0], c->mac[1], c->mac[2], c->mac[3], c->mac[4], c->mac[5],
+            hk, ok, mk);
+    fclose(f);
+    write_eeprom(c);
+    return 0;
+}
+
+static int serial_ok(const char *s)
+{
+    int i;
+    if (!s || strlen(s) != 12 || s[0] == '0') return 0;
+    for (i = 0; i < 12; i++)
+        if (s[i] < '0' || s[i] > '9') return 0;
+    return 1;
+}
+
 int xbl_console_load(XblConsole *c)
 {
-    char path[640], text[512], mac[32], hk[40], ok[40];
-    FILE *f;
+    char path[640], text[640], mac[32], hk[40], ok[40], mk[40];
     uint8_t rnd[16];
+    int have_macs = 0;
     memset(c, 0, sizeof(*c));
     console_path(path, sizeof(path));
     if (read_file(path, text, sizeof(text)) == 0 &&
         field(text, "serial", c->serial, sizeof(c->serial)) &&
-        strlen(c->serial) == 12 &&
+        serial_ok(c->serial) &&
         field(text, "mac", mac, sizeof(mac)) &&
         field(text, "hdd_key", hk, sizeof(hk)) &&
         field(text, "online_key", ok, sizeof(ok)) &&
@@ -207,30 +276,32 @@ int xbl_console_load(XblConsole *c)
                    &b[0], &b[1], &b[2], &b[3], &b[4], &b[5]) == 6) {
             int i;
             for (i = 0; i < 6; i++) c->mac[i] = (uint8_t)b[i];
+            if (field(text, "macs_key", mk, sizeof(mk)) &&
+                parse_hex(mk, c->macs_key, 16) == 0)
+                have_macs = 1;
+            if (!have_macs) {
+                derive_macs_key(c);
+                save_console(c);
+            } else {
+                write_eeprom(c);
+            }
             return 0;
         }
     }
-    if (random_bytes(rnd, sizeof(rnd)) != 0) return -1;
+    if (random_bytes(rnd, 16) != 0) return -1;
     {
         unsigned i;
         for (i = 0; i < 12; i++)
-            c->serial[i] = (char)('0' + (rnd[i % 16] + i * 3) % 10);
+            c->serial[i] = (char)('0' + (rnd[i] % 10));
+        c->serial[0] = (char)('1' + (rnd[0] % 9));
         c->serial[12] = 0;
-        if (c->serial[0] == '0') c->serial[0] = '1';
     }
-    memcpy(c->mac, rnd, 6);
+    if (random_bytes(c->mac, 6) != 0) return -1;
     c->mac[0] = (uint8_t)((c->mac[0] | 0x02) & 0xfe);
-    memcpy(c->hdd_key, rnd, 16);
+    if (random_bytes(c->hdd_key, 16) != 0) return -1;
     if (random_bytes(c->online_key, 16) != 0) return -1;
-    f = fopen(path, "wb");
-    if (!f) return -1;
-    hex_out(c->hdd_key, 16, hk);
-    hex_out(c->online_key, 16, ok);
-    fprintf(f, "serial=%s\nmac=%02x:%02x:%02x:%02x:%02x:%02x\nhdd_key=%s\nonline_key=%s\n",
-            c->serial, c->mac[0], c->mac[1], c->mac[2], c->mac[3], c->mac[4], c->mac[5],
-            hk, ok);
-    fclose(f);
-    return 0;
+    derive_macs_key(c);
+    return save_console(c);
 }
 
 int xbl_account_load(XblAccount *a)

@@ -47,8 +47,22 @@ int main(void)
     remove("/tmp/xbl-online-selftest/account.txt");
 
     if (xbl_console_load(&console) != 0) return fail("console");
-    if (strlen(console.serial) != 12) return fail("serial");
-    if (xbl_console_load(&console) != 0) return fail("console reload");
+    if (strlen(console.serial) != 12 || console.serial[0] == '0') return fail("serial");
+    if (memcmp(console.mac, console.hdd_key, 6) == 0) return fail("mac tied to hdd key");
+    if (memcmp(console.hdd_key, console.online_key, 16) == 0) return fail("keys identical");
+    {
+        int i, any = 0;
+        for (i = 0; i < 16; i++) any |= console.macs_key[i];
+        if (!any) return fail("macs key");
+    }
+    {
+        XblConsole again;
+        if (xbl_console_load(&again) != 0) return fail("console reload");
+        if (memcmp(again.hdd_key, console.hdd_key, 16) != 0) return fail("hdd key changed");
+        if (memcmp(again.online_key, console.online_key, 16) != 0) return fail("online key changed");
+        if (memcmp(again.mac, console.mac, 6) != 0) return fail("mac changed");
+        if (memcmp(again.macs_key, console.macs_key, 16) != 0) return fail("macs key changed");
+    }
 
     memset(&acct, 0, sizeof(acct));
     acct.present = 1;

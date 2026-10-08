@@ -11,6 +11,7 @@ typedef struct {
     uint8_t  mac[6];
     uint8_t  hdd_key[16];
     uint8_t  online_key[16];
+    uint8_t  macs_key[16]; /* HMAC-SHA1 + RC4 of the two keys above */
 } XblConsole;
 
 typedef struct {
@@ -28,6 +29,11 @@ int  xbl_hmac_sha1(const uint8_t *key, size_t klen,
                    const uint8_t *data, size_t dlen, uint8_t out[20]);
 int  xbl_des3_cbc(const uint8_t key[24], const uint8_t iv[8],
                   uint8_t block[16], int encrypt);
+void xbl_rc4(const uint8_t *key, size_t klen,
+             const uint8_t *in, uint8_t *out, size_t n);
+
+/* Copy this PC's HDD key into the recompiled kernel once memory exists. */
+void xbl_keys_publish(void);
 
 void xbl_profile_dir(char *out, size_t cap);
 void xbl_default_save_dir(char *out, size_t cap);

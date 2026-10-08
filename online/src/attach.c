@@ -1,6 +1,7 @@
 #include "xbl_online.h"
 #include "internal.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +11,35 @@ static int g_ready;
 
 /* Referenced from the game link line so the linker keeps this file. */
 int xbl_online_attach_anchor = 1;
+
+/* xboxrecomp's kernel data. Weak so a tool that links this file without the
+ * toolkit still builds. The game provides the real symbols. */
+#if defined(_MSC_VER)
+extern unsigned char xbox_HDKey[16];
+extern ptrdiff_t g_xbox_mem_offset;
+#else
+extern unsigned char xbox_HDKey[16] __attribute__((weak));
+extern ptrdiff_t g_xbox_mem_offset __attribute__((weak));
+#endif
+
+#define XBL_GUEST_HD_KEY 0x00740100u
+
+void xbl_keys_publish(void)
+{
+    XblConsole c;
+#if !defined(_MSC_VER)
+    if (!xbox_HDKey) return;
+#endif
+    if (xbl_console_load(&c) != 0) return;
+    memcpy(xbox_HDKey, c.hdd_key, 16);
+#if !defined(_MSC_VER)
+    if (!&g_xbox_mem_offset || !g_xbox_mem_offset) return;
+#else
+    if (!g_xbox_mem_offset) return;
+#endif
+    memcpy((void *)((uintptr_t)XBL_GUEST_HD_KEY + (uintptr_t)g_xbox_mem_offset),
+           c.hdd_key, 16);
+}
 
 static void install_saved(const char *save_dir)
 {
