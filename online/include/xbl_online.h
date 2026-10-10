@@ -31,6 +31,11 @@ const char *xbl_online_status(void);
 /* Local page with the xb.live QR code and the password form. */
 const char *xbl_online_signin_url(void);
 
+/* This PC's console identity (created on first use): the 12-digit serial
+ * (not terminated), MAC, online key and hard-drive key. 0 on success. */
+int xbl_online_console(char serial[12], unsigned char mac[6],
+                       unsigned char online_key[16], unsigned char hdd_key[16]);
+
 /* 1 = XB Online, 0 = Insignia (sign-in for Insignia is not available yet). */
 int xbl_online_network(void);
 

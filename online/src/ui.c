@@ -36,10 +36,12 @@ static char g_page_err[200];
 static int g_started;
 
 #ifdef _WIN32
-static CRITICAL_SECTION g_mu;
-static void mu_init(void) { InitializeCriticalSection(&g_mu); }
-static void mu_lock(void) { EnterCriticalSection(&g_mu); }
-static void mu_unlock(void) { LeaveCriticalSection(&g_mu); }
+/* Statically initialized, like the pthread mutex below: xbl_online_attach
+ * reports status before xbl_ui_start runs. */
+static SRWLOCK g_mu = SRWLOCK_INIT;
+static void mu_init(void) {}
+static void mu_lock(void) { AcquireSRWLockExclusive(&g_mu); }
+static void mu_unlock(void) { ReleaseSRWLockExclusive(&g_mu); }
 #else
 static pthread_mutex_t g_mu = PTHREAD_MUTEX_INITIALIZER;
 static void mu_init(void) {}
@@ -327,7 +329,6 @@ static void *ui_thread(void *arg)
 
     for (;;) {
         fd_set fds;
-        xbl_keys_publish();
         struct timeval tv;
         sock_t c;
         FD_ZERO(&fds);

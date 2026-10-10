@@ -32,9 +32,6 @@ int  xbl_des3_cbc(const uint8_t key[24], const uint8_t iv[8],
 void xbl_rc4(const uint8_t *key, size_t klen,
              const uint8_t *in, uint8_t *out, size_t n);
 
-/* Copy this PC's HDD key into the recompiled kernel once memory exists. */
-void xbl_keys_publish(void);
-
 void xbl_profile_dir(char *out, size_t cap);
 void xbl_default_save_dir(char *out, size_t cap);
 int  xbl_console_load(XblConsole *c);
