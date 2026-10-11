@@ -7,10 +7,51 @@
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#define popen _popen
-#define pclose _pclose
 #else
 #include <unistd.h>
+#endif
+
+#ifdef _WIN32
+/* Games are GUI programs: _popen would open a cmd.exe console window for
+ * every request. curl runs directly, without a window, its stdout on a pipe. */
+static void run_capture(char *cmd, char *out, size_t cap)
+{
+    SECURITY_ATTRIBUTES sa = { sizeof(sa), NULL, TRUE };
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+    HANDLE rd, wr;
+    DWORD got;
+    size_t n = 0;
+
+    out[0] = 0;
+    if (!CreatePipe(&rd, &wr, &sa, 0)) return;
+    SetHandleInformation(rd, HANDLE_FLAG_INHERIT, 0);
+    memset(&si, 0, sizeof(si));
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdOutput = wr;
+    si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+    if (!CreateProcessA(NULL, cmd, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+        CloseHandle(rd);
+        CloseHandle(wr);
+        return;
+    }
+    CloseHandle(wr);
+    while (n + 1 < cap && ReadFile(rd, out + n, (DWORD)(cap - 1 - n), &got, NULL) && got) n += got;
+    out[n] = 0;
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+    CloseHandle(rd);
+}
+#else
+static void run_capture(char *cmd, char *out, size_t cap)
+{
+    FILE *pf = popen(cmd, "r");
+    size_t n = pf ? fread(out, 1, cap - 1, pf) : 0;
+    out[n] = 0;
+    if (pf) pclose(pf);
+}
 #endif
 
 static int safe_url(const char *url)
@@ -25,7 +66,7 @@ static int safe_url(const char *url)
 int xbl_http_post(const char *url, const char *json, char *resp, size_t resp_cap, long *status)
 {
     char body_path[64], resp_path[64], cmd[768], code[16];
-    FILE *bf, *pf;
+    FILE *bf;
     size_t n;
     long http = 0;
 
@@ -50,14 +91,7 @@ int xbl_http_post(const char *url, const char *json, char *resp, size_t resp_cap
              "curl -sS --max-time 25 -o \"%s\" -w \"%%{http_code}\" "
              "-H \"Content-Type: application/json\" --data-binary @\"%s\" \"%s\"",
              resp_path, body_path, url);
-    pf = popen(cmd, "r");
-    if (!pf) {
-        remove(body_path);
-        return -1;
-    }
-    n = fread(code, 1, sizeof(code) - 1, pf);
-    code[n] = 0;
-    pclose(pf);
+    run_capture(cmd, code, sizeof(code));
     http = strtol(code, NULL, 10);
     if (status) *status = http;
 

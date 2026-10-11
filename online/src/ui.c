@@ -325,7 +325,6 @@ static void *ui_thread(void *arg)
     }
     snprintf(g_url, sizeof(g_url), "http://127.0.0.1:%d/", port);
     fprintf(stderr, "[xbl] Sign in at %s  (F10 or both stick clicks opens it)\n", g_url);
-    if (!xbl_online_gamertag()[0]) open_browser(g_url);
 
     for (;;) {
         fd_set fds;
