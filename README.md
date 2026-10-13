@@ -10,6 +10,11 @@ xboxrecomp already turns `\Device\Harddisk0\Partition0` into `Partition0.img` in
 
 ## Sign-in
 
+Temporarily disabled while the account flow is reworked: the sign-in page does
+not open at launch, and F10/L3+R3 do not open it. Console identity and saved
+account installation remain active. The flow below describes the retained UI
+for when it is enabled again.
+
 Nothing opens at launch. On Windows, press F10 or both stick clicks (L3+R3) to open the sign-in page on this computer. Sign in with the same Insignia login you use on xb.live:
 
 - Scan the QR code. It opens `https://xb.live/link?code=...`. Approve it while signed into xb.live with that Insignia login. The page then downloads the XB Online account into `Partition0.img`.

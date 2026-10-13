@@ -59,7 +59,7 @@ void xbl_online_attach(const char *save_dir)
     setenv("XBL_ONLINE_SAVE_DIR", g_save, 1);
 #endif
     g_ready = 1;
-    xbl_ui_start();
+    /* Sign-in UI is suspended for all games until the account flow is reworked. */
 }
 
 #ifndef XBL_ONLINE_NO_ATTACH
