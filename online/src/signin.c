@@ -106,7 +106,7 @@ static int install_from_provision(const char *body, const char *email, char *err
     const char *env;
 
     memset(&acct, 0, sizeof(acct));
-    if (xbl_console_load(&console) != 0) {
+    if (xbl_game_console(&console) != 0) {
         set_err(err, err_cap, "Could not create a console identity for this PC.");
         return -1;
     }

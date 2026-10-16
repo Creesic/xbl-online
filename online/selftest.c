@@ -1,4 +1,5 @@
 #include "internal.h"
+#include "xbl_online.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -71,6 +72,19 @@ int main(void)
     memcpy(acct.user_key, "0123456789abcdef", 16);
     acct.has_user_key = 1;
     if (xbl_disk_install(dir, &acct, &console) != 0) return fail("install");
+    {
+        /* Signed in or not, games get one XboxHDKey (zero) and the account
+         * sectors verify under it. */
+        char serial[12];
+        uint8_t mac6[6], online[16], hdd[16], zero[16] = {0};
+        XblConsole game;
+        if (xbl_online_console(serial, mac6, online, hdd) != 0) return fail("game console");
+        if (memcmp(hdd, zero, 16) != 0) return fail("game hdd key not zero");
+        if (memcmp(serial, console.serial, 12) != 0) return fail("game serial");
+        if (xbl_game_console(&game) != 0) return fail("game identity");
+        if (memcmp(game.hdd_key, zero, 16) != 0) return fail("sector key not zero");
+        if (xbl_disk_install(dir, &acct, &game) != 0) return fail("install zero key");
+    }
 
     memset(&acct, 0, sizeof(acct));
     if (xbl_disk_install(dir, &acct, &console) != 0) return fail("clear");
