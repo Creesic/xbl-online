@@ -73,17 +73,20 @@ int main(void)
     acct.has_user_key = 1;
     if (xbl_disk_install(dir, &acct, &console) != 0) return fail("install");
     {
-        /* Signed in or not, games get one XboxHDKey (zero) and the account
-         * sectors verify under it. */
+        /* Signed in or not, games get one fixed, non-zero XboxHDKey and the
+         * account sectors verify under it. */
+        static const uint8_t fixed[16] = {
+            0x78, 0x2E, 0xA5, 0x47, 0x18, 0x02, 0xBD, 0x8D, 0x1A, 0x89, 0xDE, 0x22, 0x1E, 0x3A, 0x19, 0xD9,
+        };
         char serial[12];
-        uint8_t mac6[6], online[16], hdd[16], zero[16] = {0};
+        uint8_t mac6[6], online[16], hdd[16];
         XblConsole game;
         if (xbl_online_console(serial, mac6, online, hdd) != 0) return fail("game console");
-        if (memcmp(hdd, zero, 16) != 0) return fail("game hdd key not zero");
+        if (memcmp(hdd, fixed, 16) != 0) return fail("game hdd key not the fixed key");
         if (memcmp(serial, console.serial, 12) != 0) return fail("game serial");
         if (xbl_game_console(&game) != 0) return fail("game identity");
-        if (memcmp(game.hdd_key, zero, 16) != 0) return fail("sector key not zero");
-        if (xbl_disk_install(dir, &acct, &game) != 0) return fail("install zero key");
+        if (memcmp(game.hdd_key, fixed, 16) != 0) return fail("sector key not the fixed key");
+        if (xbl_disk_install(dir, &acct, &game) != 0) return fail("install fixed key");
     }
 
     memset(&acct, 0, sizeof(acct));
