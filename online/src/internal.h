@@ -35,7 +35,8 @@ void xbl_rc4(const uint8_t *key, size_t klen,
 void xbl_profile_dir(char *out, size_t cap);
 void xbl_default_save_dir(char *out, size_t cap);
 int  xbl_console_load(XblConsole *c);
-int  xbl_game_console(XblConsole *c);  /* the identity with the zero XboxHDKey games get */
+int  xbl_game_console(XblConsole *c);  /* the identity with the fixed XboxHDKey games get */
+void xbl_macs_rc4(const uint8_t hdd_key[16], const uint8_t in[16], uint8_t out[16]);
 int  xbl_account_load(XblAccount *a);
 int  xbl_account_save(const XblAccount *a);
 void xbl_account_clear(void);

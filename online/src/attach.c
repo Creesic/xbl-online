@@ -22,12 +22,16 @@ static const uint8_t GAME_HD_KEY[16] = {
 };
 
 /* The identity as the game sees it: its XboxHDKey is GAME_HD_KEY, and the
- * account sectors are signed with the same key. The server's machine account
- * key arrives on disk, so no title derives a key from the registered hdd_key. */
+ * account sectors are signed with the same key. Titles that sign in to MACS
+ * themselves (Burnout 3) derive the machine key from XboxHDKey and the EEPROM
+ * online key, as the dashboard does. XB Online registered the key the
+ * identity's own hdd_key gives, so the game's online key is the one that
+ * gives that same key under GAME_HD_KEY. */
 int xbl_game_console(XblConsole *c)
 {
     if (xbl_console_load(c) != 0) return -1;
     memcpy(c->hdd_key, GAME_HD_KEY, sizeof(c->hdd_key));
+    xbl_macs_rc4(GAME_HD_KEY, c->macs_key, c->online_key);
     return 0;
 }
 

@@ -86,6 +86,12 @@ int main(void)
         if (memcmp(serial, console.serial, 12) != 0) return fail("game serial");
         if (xbl_game_console(&game) != 0) return fail("game identity");
         if (memcmp(game.hdd_key, fixed, 16) != 0) return fail("sector key not the fixed key");
+        {
+            /* A game deriving its MACS key from what it sees gets the registered one. */
+            uint8_t derived[16];
+            xbl_macs_rc4(hdd, online, derived);
+            if (memcmp(derived, console.macs_key, 16) != 0) return fail("game MACS key not the registered key");
+        }
         if (xbl_disk_install(dir, &acct, &game) != 0) return fail("install fixed key");
     }
 
