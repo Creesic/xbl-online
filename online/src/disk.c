@@ -200,6 +200,22 @@ static int read_at(FILE *f, unsigned lba, uint8_t sec[SECTOR])
     return fread(sec, 1, SECTOR, f) == SECTOR ? 0 : -1;
 }
 
+/* The machine account the game saved after its own MACS sign-in: this
+ * console's name and key with the XUID XB Online gave it. XOnline skips MACS,
+ * and the 2 s wait it adds after one, only when that XUID is not zero. */
+static int game_machine_account(FILE *f, const uint8_t hdd[16], const char *name,
+                                const uint8_t key[16])
+{
+    static const uint8_t zero[8];
+    uint8_t sec[SECTOR], rec[REC];
+    if (read_at(f, BASE_LBA + 1, sec) != 0 || verify_108(sec + 12, hdd, KEY_MORPH_IV) != 0)
+        return 0;
+    memcpy(rec, sec + 12, REC);
+    if (morph_key(hdd, rec + 0x50, KEY_MORPH_IV, 0) != 0) return 0;
+    return memcmp(rec, zero, 8) != 0 && strncmp((const char *)rec + 0x0C, name, 16) == 0 &&
+           memcmp(rec + 0x50, key, 16) == 0;
+}
+
 int xbl_disk_install(const char *save_dir, const XblAccount *a, const XblConsole *console)
 {
     char path[640];
@@ -280,7 +296,8 @@ int xbl_disk_install(const char *save_dir, const XblAccount *a, const XblConsole
             machine.present = 1;
             machine.xuid = 0;
             snprintf(machine.gamertag, sizeof(machine.gamertag), "SN.%s", console->serial);
-            if (fill_and_sign_108(rec, &machine, console->hdd_key,
+            if (!game_machine_account(f, console->hdd_key, machine.gamertag, a->machine_key) &&
+                fill_and_sign_108(rec, &machine, console->hdd_key,
                                   a->machine_key, KEY_MORPH_IV) == 0) {
                 memset(data, 0, sizeof(data));
                 memcpy(data, rec, 108);
