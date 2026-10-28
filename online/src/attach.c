@@ -21,12 +21,13 @@ static const uint8_t GAME_HD_KEY[16] = {
     0x78, 0x2E, 0xA5, 0x47, 0x18, 0x02, 0xBD, 0x8D, 0x1A, 0x89, 0xDE, 0x22, 0x1E, 0x3A, 0x19, 0xD9,
 };
 
-/* The identity as the game sees it: its XboxHDKey is GAME_HD_KEY, and the
- * account sectors are signed with the same key. The server's machine account
- * key arrives on disk, so no title derives a key from the registered hdd_key. */
+/* Keep the registered MACS key when XOnline derives it using the portable
+ * XboxHDKey. Only this in-memory online key is remorphed; provisioning keeps
+ * the console's original HDD and online keys. */
 int xbl_game_console(XblConsole *c)
 {
     if (xbl_console_load(c) != 0) return -1;
+    if (xbl_morph_online_key(GAME_HD_KEY, c->macs_key, c->online_key) != 0) return -1;
     memcpy(c->hdd_key, GAME_HD_KEY, sizeof(c->hdd_key));
     return 0;
 }

@@ -6,6 +6,8 @@
 #include <string.h>
 #ifdef _WIN32
 #include <direct.h>
+#define mkdir(path, mode) _mkdir(path)
+#define setenv(name, value, overwrite) _putenv_s(name, value)
 #else
 #include <sys/stat.h>
 #include <unistd.h>
@@ -17,13 +19,14 @@ static int fail(const char *msg)
     return 1;
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
     uint8_t mac[20];
     uint8_t block[16], key[24], iv[8];
     XblConsole console;
     XblAccount acct;
-    char dir[] = "/tmp/xbl-online-selftest";
+    const char *dir = argc > 1 ? argv[1] : "/tmp/xbl-online-selftest";
+    char path[1024];
     const uint8_t *data = (const uint8_t *)"The quick brown fox jumps over the lazy dog";
     const uint8_t *hkey = (const uint8_t *)"key";
     static const uint8_t expect[20] = {
@@ -44,8 +47,10 @@ int main(void)
     mkdir(dir, 0755);
     setenv("XBL_ONLINE_PROFILE", dir, 1);
     setenv("XBL_ONLINE_SAVE_DIR", dir, 1);
-    remove("/tmp/xbl-online-selftest/console.txt");
-    remove("/tmp/xbl-online-selftest/account.txt");
+    snprintf(path, sizeof(path), "%s/console.txt", dir);
+    remove(path);
+    snprintf(path, sizeof(path), "%s/account.txt", dir);
+    remove(path);
 
     if (xbl_console_load(&console) != 0) return fail("console");
     if (strlen(console.serial) != 12 || console.serial[0] == '0') return fail("serial");
@@ -84,6 +89,23 @@ int main(void)
         if (xbl_online_console(serial, mac6, online, hdd) != 0) return fail("game console");
         if (memcmp(hdd, fixed, 16) != 0) return fail("game hdd key not the fixed key");
         if (memcmp(serial, console.serial, 12) != 0) return fail("game serial");
+        {
+            /* A portable save key must not change the identity registered for
+             * MACS, or alter the persisted console used by provisioning. */
+            static const uint8_t morph[16] = {
+                0x60, 0x59, 0xE8, 0x2E, 0xDF, 0xBF, 0x7F, 0xD3,
+                0x23, 0x35, 0x74, 0x2A, 0x64, 0x8B, 0xB1, 0x2C,
+            };
+            uint8_t digest[20], game_macs[16];
+            XblConsole again;
+            if (xbl_hmac_sha1(morph, 16, hdd, 16, digest) != 0) return fail("game MACS derivation");
+            xbl_rc4(digest, 20, online, game_macs, 16);
+            if (memcmp(game_macs, console.macs_key, 16) != 0) return fail("portable HDD key changed MACS identity");
+            if (xbl_console_load(&again) != 0) return fail("console after game identity");
+            if (memcmp(again.hdd_key, console.hdd_key, 16) != 0 ||
+                memcmp(again.online_key, console.online_key, 16) != 0 ||
+                memcmp(again.macs_key, console.macs_key, 16) != 0) return fail("game identity changed stored keys");
+        }
         if (xbl_game_console(&game) != 0) return fail("game identity");
         if (memcmp(game.hdd_key, fixed, 16) != 0) return fail("sector key not the fixed key");
         if (xbl_disk_install(dir, &acct, &game) != 0) return fail("install fixed key");

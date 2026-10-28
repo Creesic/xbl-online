@@ -194,14 +194,18 @@ static const uint8_t HDD_MORPH_KEY[16] = {
     0x23, 0x35, 0x74, 0x2A, 0x64, 0x8B, 0xB1, 0x2C
 };
 
-static void derive_macs_key(XblConsole *c)
+int xbl_morph_online_key(const uint8_t hdd_key[16], const uint8_t in[16], uint8_t out[16])
 {
     uint8_t digest[20];
-    if (xbl_hmac_sha1(HDD_MORPH_KEY, 16, c->hdd_key, 16, digest) != 0) {
+    if (xbl_hmac_sha1(HDD_MORPH_KEY, 16, hdd_key, 16, digest) != 0) return -1;
+    xbl_rc4(digest, 20, in, out, 16);
+    return 0;
+}
+
+static void derive_macs_key(XblConsole *c)
+{
+    if (xbl_morph_online_key(c->hdd_key, c->online_key, c->macs_key) != 0)
         memcpy(c->macs_key, c->online_key, 16);
-        return;
-    }
-    xbl_rc4(digest, 20, c->online_key, c->macs_key, 16);
 }
 
 static void write_eeprom(const XblConsole *c)
