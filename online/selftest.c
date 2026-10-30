@@ -43,6 +43,20 @@ int main(int argc, char **argv)
     if (xbl_des3_cbc(key, iv, block, 1) != 0) return fail("3des encrypt");
     if (xbl_des3_cbc(key, iv, block, 0) != 0) return fail("3des decrypt");
     if (block[0] != 0x5a || block[15] != 0x5a) return fail("3des roundtrip");
+    {
+        /* Known answer from Windows' 3DES (.NET TripleDES, CBC, no padding):
+         * key 01..18, IV 22 x8, sixteen 5a bytes. */
+        static const uint8_t cipher[16] = {
+            0x18, 0x59, 0xe2, 0x16, 0xd0, 0xe7, 0xdd, 0xa2,
+            0xdf, 0x76, 0x9a, 0xbe, 0xbc, 0x9f, 0x75, 0x80
+        };
+        int i;
+        for (i = 0; i < 24; i++) key[i] = (uint8_t)(i + 1);
+        if (xbl_des3_cbc(key, iv, block, 1) != 0) return fail("3des encrypt");
+        if (memcmp(block, cipher, 16) != 0) return fail("3des vector");
+        if (xbl_des3_cbc(key, iv, block, 0) != 0) return fail("3des decrypt");
+        if (block[0] != 0x5a || block[15] != 0x5a) return fail("3des vector roundtrip");
+    }
 
     mkdir(dir, 0755);
     setenv("XBL_ONLINE_PROFILE", dir, 1);

@@ -20,7 +20,7 @@ target_compile_features(xbl_online PUBLIC c_std_11)
 if(WIN32)
     target_link_libraries(xbl_online PUBLIC bcrypt ws2_32 xinput shell32)
 else()
-    target_link_libraries(xbl_online PUBLIC pthread)
+    target_link_libraries(xbl_online PUBLIC $<$<NOT:$<PLATFORM_ID:Android>>:pthread>)
     target_compile_definitions(xbl_online PRIVATE _POSIX_C_SOURCE=200809L)
 endif()
 
